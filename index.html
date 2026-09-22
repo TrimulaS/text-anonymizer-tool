@@ -1,0 +1,894 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Local Text Anonymizer & De-ID Tool</title>
+  <!-- Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500&family=JetBrains+Mono:wght@400;500&family=Source+Code+Pro:wght@400;500&display=swap" rel="stylesheet">
+  
+  <style>
+    :root {
+      --bg-color: #f4f6f8;
+      --card-bg: #ffffff;
+      --text-color: #333333;
+      --border-color: #ccc;
+      --primary-color: #0066cc;
+      --input-highlight-color: rgba(255, 235, 59, 0.55);
+      --output-highlight-color: rgba(76, 175, 80, 0.35);
+      --splitter-size: 8px;
+      
+      --editor-font-family: 'JetBrains Mono', monospace;
+      --editor-font-size: 13px;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      background-color: var(--bg-color);
+      color: var(--text-color);
+      display: flex;
+      flex-direction: column;
+      height: 100vh;
+      overflow: hidden;
+    }
+
+    /* Header Styling */
+    header {
+      background-color: var(--card-bg);
+      padding: 8px 15px;
+      border-bottom: 1px solid var(--border-color);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 10px;
+      flex-shrink: 0;
+    }
+
+    .header-title-section {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-grow: 1;
+    }
+
+    .header-title-section h1 {
+      font-size: 1.1rem;
+      white-space: nowrap;
+    }
+
+    .toggle-btn {
+      background: #e0e0e0;
+      border: 1px solid var(--border-color);
+      border-radius: 4px;
+      width: 26px;
+      height: 26px;
+      cursor: pointer;
+      font-weight: bold;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .user-names-input {
+      flex-grow: 1;
+      max-width: 450px;
+      padding: 5px 8px;
+      border: 1px solid var(--border-color);
+      border-radius: 4px;
+      font-size: 0.88rem;
+      display: none;
+    }
+
+    .user-names-input.visible {
+      display: block;
+    }
+
+    .header-actions {
+      display: flex;
+      gap: 8px;
+    }
+
+    .btn {
+      background-color: var(--primary-color);
+      color: white;
+      border: none;
+      padding: 5px 10px;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 0.82rem;
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+    }
+
+    .btn:hover {
+      opacity: 0.9;
+    }
+
+    .btn-secondary {
+      background-color: #6c757d;
+    }
+
+    .btn-action {
+      background-color: #28a745;
+      font-weight: bold;
+    }
+
+    /* Control Bar */
+    .controls-bar {
+      padding: 6px 15px;
+      background: #eaeef2;
+      display: flex;
+      align-items: center;
+      gap: 18px;
+      font-size: 0.85rem;
+      border-bottom: 1px solid var(--border-color);
+      flex-wrap: wrap;
+      flex-shrink: 0;
+    }
+
+    .control-group {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .control-group select {
+      padding: 3px 6px;
+      border-radius: 4px;
+      border: 1px solid var(--border-color);
+      font-size: 0.82rem;
+      background: white;
+    }
+
+    /* Main App Layout */
+    .app-container {
+      display: flex;
+      flex-direction: column;
+      flex: 1;
+      min-height: 0;
+      overflow: hidden;
+    }
+
+    /* Workspace Panel Container */
+    .workspace-container {
+      display: flex;
+      flex: 1;
+      padding: 8px;
+      overflow: hidden;
+      min-height: 0;
+    }
+
+    .workspace-container.layout-horizontal {
+      flex-direction: row;
+    }
+
+    .workspace-container.layout-vertical {
+      flex-direction: column;
+    }
+
+    .pane {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      min-width: 150px;
+      min-height: 80px;
+      overflow: hidden;
+      flex: 1;
+    }
+
+    .pane-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .pane-header label {
+      font-weight: bold;
+      font-size: 0.8rem;
+      color: #555;
+    }
+
+    .pane-tools {
+      display: flex;
+      gap: 4px;
+    }
+
+    .tool-btn {
+      background: #e9ecef;
+      border: 1px solid #ced4da;
+      border-radius: 3px;
+      padding: 2px 6px;
+      font-size: 0.75rem;
+      cursor: pointer;
+    }
+
+    .tool-btn:hover {
+      background: #dee2e6;
+    }
+
+    /* Splitters */
+    .splitter {
+      background-color: var(--border-color);
+      z-index: 10;
+      transition: background-color 0.2s;
+      flex-shrink: 0;
+    }
+
+    .splitter:hover, .splitter.dragging {
+      background-color: var(--primary-color);
+    }
+
+    .workspace-container.layout-horizontal > .splitter {
+      width: var(--splitter-size);
+      height: 100%;
+      cursor: col-resize;
+    }
+
+    .workspace-container.layout-vertical > .splitter {
+      height: var(--splitter-size);
+      width: 100%;
+      cursor: row-resize;
+    }
+
+    .vertical-status-splitter {
+      height: var(--splitter-size);
+      width: 100%;
+      cursor: row-resize;
+    }
+
+    /* Bottom Status Bar Panel */
+    .status-bar-panel {
+      display: flex;
+      flex-direction: column;
+      height: 120px;
+      min-height: 35px;
+      max-height: 35vh;
+      background: #272822;
+      border-top: 1px solid var(--border-color);
+      padding: 4px 8px 8px 8px;
+      box-sizing: border-box;
+      flex-shrink: 0;
+    }
+
+    .status-bar-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding-bottom: 4px;
+    }
+
+    .status-bar-header label {
+      font-weight: bold;
+      font-size: 0.8rem;
+      color: #ccc;
+    }
+
+    /* Text Editor Container & Highlighting */
+    .editor-wrapper {
+      position: relative;
+      width: 100%;
+      height: 100%;
+      border: 1px solid var(--border-color);
+      border-radius: 4px;
+      background-color: var(--card-bg);
+      overflow: hidden;
+      min-height: 0;
+    }
+
+    .highlight-backdrop, textarea {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      padding: 8px;
+      font-family: var(--editor-font-family);
+      font-size: var(--editor-font-size);
+      line-height: 1.4;
+      white-space: pre;
+      overflow: auto;
+      box-sizing: border-box;
+      margin: 0;
+      border: none;
+      outline: none;
+    }
+
+    .highlight-backdrop {
+      color: transparent;
+      pointer-events: none;
+      z-index: 1;
+    }
+
+    #input-backdrop mark {
+      color: transparent;
+      background-color: var(--input-highlight-color);
+      border-radius: 2px;
+    }
+
+    #output-backdrop mark {
+      color: transparent;
+      background-color: var(--output-highlight-color);
+      border-radius: 2px;
+    }
+
+    textarea {
+      background: transparent;
+      z-index: 2;
+      resize: none;
+      color: var(--text-color);
+    }
+
+    #json-output {
+      position: relative;
+      width: 100%;
+      height: 100%;
+      background-color: #272822;
+      color: #f8f8f2;
+      font-family: var(--editor-font-family);
+      font-size: calc(var(--editor-font-size) - 1px);
+      white-space: pre-wrap;
+      border: none;
+      outline: none;
+      resize: none;
+      overflow: auto;
+    }
+
+    /* Modals */
+    .modal {
+      display: none;
+      position: fixed;
+      top: 50px;
+      right: 15px;
+      background: white;
+      border: 1px solid var(--border-color);
+      box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+      padding: 12px;
+      border-radius: 6px;
+      z-index: 100;
+      width: 320px;
+      max-height: 400px;
+      overflow-y: auto;
+    }
+
+    .modal.active {
+      display: block;
+    }
+
+    .detected-list {
+      list-style: none;
+      margin-top: 8px;
+    }
+
+    .detected-list li {
+      padding: 4px 0;
+      border-bottom: 1px solid #eee;
+      font-size: 0.85rem;
+      font-family: var(--editor-font-family);
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Header Section -->
+  <header>
+    <div class="header-title-section">
+      <h1>Text Anonymizer</h1>
+      <button class="toggle-btn" id="toggle-dict-btn" onclick="toggleDictionaryField()" title="Toggle Dictionary Field">[+]</button>
+      <input type="text" id="global-names" class="user-names-input" 
+             placeholder="Global name dictionary (auto-saved): Name 1, Name 2" 
+             title="Edit custom names dictionary here">
+    </div>
+    <div class="header-actions">
+      <button class="btn" onclick="toggleDetectedModal()">🔍 Detected Names</button>
+      <button class="btn" onclick="toggleNamesModal()">📋 Global Dictionary</button>
+    </div>
+
+    <!-- Modals -->
+    <div id="names-modal" class="modal">
+      <h4>Global Dictionary:</h4>
+      <p id="modal-names-list" style="margin-top: 8px; font-size: 0.85rem; word-break: break-all;"></p>
+    </div>
+
+    <div id="detected-modal" class="modal">
+      <h4>Names Detected in Current Text:</h4>
+      <ul id="detected-names-list" class="detected-list"></ul>
+    </div>
+  </header>
+
+  <!-- Control & Mode Bar -->
+  <div class="controls-bar">
+    <button class="btn btn-action" onclick="processText()">⚡ Process Text</button>
+
+    <div class="control-group">
+      <strong>Mode:</strong>
+      <label>
+        <input type="radio" name="mode" value="partial" checked onchange="processText()">
+        Partial Initials (<b>-p</b>)
+      </label>
+      <label>
+        <input type="radio" name="mode" value="standard" onchange="processText()">
+        Standard — <code>[User_1]</code>
+      </label>
+    </div>
+
+    <!-- Typography Controls -->
+    <div class="control-group" style="margin-left: 10px;">
+      <strong>Font:</strong>
+      <select id="font-family-select" onchange="updateFontSettings()">
+        <option value="'JetBrains Mono', monospace" selected>JetBrains Mono</option>
+        <option value="'Fira Code', monospace">Fira Code</option>
+        <option value="'Source Code Pro', monospace">Source Code Pro</option>
+        <option value="Consolas, monospace">Consolas</option>
+        <option value="Monaco, monospace">Monaco</option>
+        <option value="monospace">System Monospace</option>
+      </select>
+
+      <select id="font-size-select" onchange="updateFontSettings()">
+        <option value="11px">11px</option>
+        <option value="12px">12px</option>
+        <option value="13px" selected>13px</option>
+        <option value="14px">14px</option>
+        <option value="15px">15px</option>
+        <option value="16px">16px</option>
+        <option value="18px">18px</option>
+      </select>
+    </div>
+
+    <div class="control-group" style="margin-left: auto;">
+      <strong>Layout:</strong>
+      <label>
+        <input type="radio" name="layout" value="horizontal" checked onchange="updateLayout('horizontal')">
+        Horizontal
+      </label>
+      <label>
+        <input type="radio" name="layout" value="vertical" onchange="updateLayout('vertical')">
+        Vertical
+      </label>
+    </div>
+  </div>
+
+  <div class="app-container">
+    <!-- Workspace Area -->
+    <div id="workspace" class="workspace-container layout-horizontal">
+      
+      <!-- Input Pane -->
+      <div class="pane" id="pane-input">
+        <div class="pane-header">
+          <label for="input-text">Input Text:</label>
+          <div class="pane-tools">
+            <button class="tool-btn" onclick="pasteInputText()" title="Paste from Clipboard">📋 Paste</button>
+            <button class="tool-btn" onclick="clearInputText()" title="Clear Input">🗑 Clear</button>
+            <button class="tool-btn" onclick="undoInputText()" title="Undo">↩ Undo</button>
+            <button class="tool-btn" onclick="redoInputText()" title="Redo">↪ Redo</button>
+          </div>
+        </div>
+        <div class="editor-wrapper">
+          <div class="highlight-backdrop" id="input-backdrop"></div>
+          <textarea id="input-text" wrap="off" placeholder="NAMES: Ivanov Ivan, Joy Peterson&#10;---&#10;Anilpradeep Surendran added a comment - 18/Dec/25 10:08 AM&#10;Hi RS, please review the tickets with Joy Peterson." oninput="processText()"></textarea>
+        </div>
+      </div>
+
+      <div class="splitter" id="workspace-splitter"></div>
+
+      <!-- Output Pane -->
+      <div class="pane" id="pane-output">
+        <div class="pane-header">
+          <label for="output-text">Anonymized Output Text:</label>
+          <div class="pane-tools">
+            <button class="tool-btn" onclick="copyOutputText()" title="Copy Anonymized Text">📋 Copy</button>
+            <button class="tool-btn" onclick="clearOutputText()" title="Clear Output">🗑 Clear</button>
+          </div>
+        </div>
+        <div class="editor-wrapper">
+          <div class="highlight-backdrop" id="output-backdrop"></div>
+          <textarea id="output-text" wrap="off" readonly></textarea>
+        </div>
+      </div>
+
+    </div>
+
+    <div class="splitter vertical-status-splitter" id="status-splitter"></div>
+
+    <!-- Status Bar for JSON Mapping -->
+    <div class="status-bar-panel" id="status-panel">
+      <div class="status-bar-header">
+        <label>JSON Mapping Table (Audit / Reversal):</label>
+        <button class="btn btn-secondary" style="padding: 2px 6px; font-size: 0.75rem;" onclick="toggleStatusPanel()">Min/Hide</button>
+      </div>
+      <div style="flex: 1; min-height: 0; position: relative;">
+        <textarea id="json-output" readonly placeholder="{}"></textarea>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const PRESET_DICTIONARY_NAMES = [
+      "Ivanov Ivan", 
+      "Deepa Kannan", 
+      "Joy Peterson", 
+      "Anilpradeep Surendran",
+      "Kumar", 
+      "Premanandan", 
+      "Jai", 
+      "Deepa"
+    ];
+
+    const globalNamesInput = document.getElementById('global-names');
+    const toggleDictBtn = document.getElementById('toggle-dict-btn');
+    const inputText = document.getElementById('input-text');
+    const inputBackdrop = document.getElementById('input-backdrop');
+    const outputText = document.getElementById('output-text');
+    const outputBackdrop = document.getElementById('output-backdrop');
+    const jsonOutput = document.getElementById('json-output');
+    const workspace = document.getElementById('workspace');
+    const workspaceSplitter = document.getElementById('workspace-splitter');
+    const statusSplitter = document.getElementById('status-splitter');
+    const statusPanel = document.getElementById('status-panel');
+    const paneInput = document.getElementById('pane-input');
+    const paneOutput = document.getElementById('pane-output');
+
+    let currentDetectedNames = [];
+
+    const savedNames = localStorage.getItem('deid_global_names');
+    globalNamesInput.value = (savedNames !== null) ? savedNames : PRESET_DICTIONARY_NAMES.join(', ');
+
+    globalNamesInput.addEventListener('input', () => {
+      localStorage.setItem('deid_global_names', globalNamesInput.value);
+      updateModalContent();
+      processText();
+    });
+
+    // Font & Styling updates
+    function updateFontSettings() {
+      const family = document.getElementById('font-family-select').value;
+      const size = document.getElementById('font-size-select').value;
+      
+      document.documentElement.style.setProperty('--editor-font-family', family);
+      document.documentElement.style.setProperty('--editor-font-size', size);
+    }
+
+    // Modal Toggles
+    function toggleDictionaryField() {
+      const isVisible = globalNamesInput.classList.toggle('visible');
+      toggleDictBtn.textContent = isVisible ? '[-]' : '[+]';
+    }
+
+    function toggleNamesModal() {
+      document.getElementById('detected-modal').classList.remove('active');
+      const modal = document.getElementById('names-modal');
+      updateModalContent();
+      modal.classList.toggle('active');
+    }
+
+    function toggleDetectedModal() {
+      document.getElementById('names-modal').classList.remove('active');
+      const modal = document.getElementById('detected-modal');
+      updateDetectedModalContent();
+      modal.classList.toggle('active');
+    }
+
+    function updateModalContent() {
+      document.getElementById('modal-names-list').textContent = globalNamesInput.value || 'Dictionary is empty';
+    }
+
+    function updateDetectedModalContent() {
+      const list = document.getElementById('detected-names-list');
+      list.innerHTML = '';
+      if (currentDetectedNames.length === 0) {
+        list.innerHTML = '<li><i>No names detected in current text</i></li>';
+        return;
+      }
+      currentDetectedNames.forEach(name => {
+        const li = document.createElement('li');
+        li.textContent = name;
+        list.appendChild(li);
+      });
+    }
+
+    // Helper Tools (Copy / Paste / Clear / Undo / Redo)
+    async function pasteInputText() {
+      try {
+        const text = await navigator.clipboard.readText();
+        inputText.value = text;
+        processText();
+      } catch (err) {
+        alert('Clipboard paste permission denied or not supported.');
+      }
+    }
+
+    function clearInputText() {
+      inputText.value = '';
+      processText();
+    }
+
+    function undoInputText() {
+      document.execCommand('undo');
+      processText();
+    }
+
+    function redoInputText() {
+      document.execCommand('redo');
+      processText();
+    }
+
+    function copyOutputText() {
+      if (!outputText.value) return;
+      navigator.clipboard.writeText(outputText.value);
+      alert('Anonymized text copied to clipboard!');
+    }
+
+    function clearOutputText() {
+      outputText.value = '';
+      outputBackdrop.innerHTML = '';
+    }
+
+    // Anonymization logic
+    function generateHash(str) {
+      let hash = 0;
+      for (let i = 0; i < str.length; i++) {
+        hash = (hash << 5) - hash + str.charCodeAt(i);
+        hash |= 0;
+      }
+      return Math.abs(hash).toString(16).padStart(3, '0').slice(0, 3);
+    }
+
+    // Clean initial extraction without breaking compound words
+    function getInitials(name) {
+      const parts = name.trim().split(/\s+/).filter(Boolean);
+      if (parts.length === 0) return 'X.';
+      return parts.map(p => p[0].toUpperCase() + '.').join('');
+    }
+
+    function escapeRegExp(string) {
+      return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    }
+
+    function buildFlexibleNameRegex(nameString, allowPossessives = true) {
+      const parts = nameString.trim().split(/\s+/).map(escapeRegExp);
+      const flexiblePattern = parts.join('\\s+');
+      const suffixPattern = allowPossessives ? "('s|’s)?" : "";
+      return new RegExp(`\\b${flexiblePattern}${suffixPattern}\\b`, 'gi');
+    }
+
+    function processText() {
+      const text = inputText.value;
+      if (!text) {
+        outputText.value = '';
+        inputBackdrop.innerHTML = '';
+        outputBackdrop.innerHTML = '';
+        jsonOutput.value = '{}';
+        currentDetectedNames = [];
+        return;
+      }
+
+      const mode = document.querySelector('input[name="mode"]:checked').value;
+      
+      let headerNames = [];
+      const headerMatch = text.match(/^NAMES:\s*(.*?)\n---/s);
+      if (headerMatch) {
+        headerNames = headerMatch[1].split(',').map(n => n.trim()).filter(Boolean);
+      }
+
+      const globalNames = globalNamesInput.value.split(',').map(n => n.trim()).filter(Boolean);
+      let allKnownNames = [...new Set([...headerNames, ...globalNames])].filter(Boolean);
+      
+      // Sort descending by word length to prioritize exact longer matches
+      allKnownNames.sort((a, b) => b.length - a.length);
+
+      const initialsCountMap = {};
+      allKnownNames.forEach(name => {
+        const initials = getInitials(name);
+        initialsCountMap[initials] = (initialsCountMap[initials] || 0) + 1;
+      });
+
+      const mapping = {};
+      const detectedSet = new Set();
+      const inputMatchedRanges = [];
+      const outputMatchedRanges = [];
+      let userCounter = 1;
+
+      function getAlias(fullName) {
+        if (mapping[fullName]) return mapping[fullName];
+
+        let alias = '';
+        if (mode === 'standard') {
+          alias = `[User_${userCounter++}]`;
+        } else {
+          const initials = getInitials(fullName);
+          if (initialsCountMap[initials] > 1) {
+            alias = `${initials}_${generateHash(fullName)}`;
+          } else {
+            alias = initials;
+          }
+        }
+        mapping[fullName] = alias;
+        return alias;
+      }
+
+      let resultText = text;
+
+      allKnownNames.forEach(fullName => {
+        const alias = getAlias(fullName);
+        const fullRegex = buildFlexibleNameRegex(fullName, true);
+
+        // Find matches in input text
+        let m;
+        while ((m = fullRegex.exec(text)) !== null) {
+          detectedSet.add(fullName);
+          inputMatchedRanges.push({ start: m.index, end: m.index + m[0].length });
+        }
+
+        // Perform Replacement
+        resultText = resultText.replace(fullRegex, (match, p1) => alias + (p1 || ''));
+      });
+
+      // Find replacement aliases in Output text for Output Highlighting
+      Object.values(mapping).forEach(alias => {
+        const aliasRegex = new RegExp(escapeRegExp(alias), 'g');
+        let m;
+        while ((m = aliasRegex.exec(resultText)) !== null) {
+          outputMatchedRanges.push({ start: m.index, end: m.index + m[0].length });
+        }
+      });
+
+      outputText.value = resultText;
+      jsonOutput.value = JSON.stringify(mapping, null, 2);
+      currentDetectedNames = Array.from(detectedSet);
+
+      // Render Highlights for both containers
+      renderHighlights(inputBackdrop, text, inputMatchedRanges);
+      renderHighlights(outputBackdrop, resultText, outputMatchedRanges);
+    }
+
+    function renderHighlights(container, rawText, ranges) {
+      if (ranges.length === 0) {
+        container.innerHTML = escapeHtml(rawText);
+        return;
+      }
+
+      ranges.sort((a, b) => a.start - b.start);
+      const merged = [ranges[0]];
+      for (let i = 1; i < ranges.length; i++) {
+        const prev = merged[merged.length - 1];
+        const curr = ranges[i];
+        if (curr.start <= prev.end) {
+          prev.end = Math.max(prev.end, curr.end);
+        } else {
+          merged.push(curr);
+        }
+      }
+
+      let html = '';
+      let lastIdx = 0;
+      merged.forEach(r => {
+        html += escapeHtml(rawText.substring(lastIdx, r.start));
+        html += '<mark>' + escapeHtml(rawText.substring(r.start, r.end)) + '</mark>';
+        lastIdx = r.end;
+      });
+      html += escapeHtml(rawText.substring(lastIdx));
+
+      if (rawText.endsWith('\n')) html += '\n';
+      container.innerHTML = html;
+    }
+
+    function escapeHtml(str) {
+      return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    }
+
+    // Synchronized Scrolling & Selection
+    let isSyncing = false;
+
+    function syncScroll(source, target) {
+      if (source === inputText) {
+        inputBackdrop.scrollTop = inputText.scrollTop;
+        inputBackdrop.scrollLeft = inputText.scrollLeft;
+      }
+      if (source === outputText) {
+        outputBackdrop.scrollTop = outputText.scrollTop;
+        outputBackdrop.scrollLeft = outputText.scrollLeft;
+      }
+
+      if (isSyncing) return;
+      isSyncing = true;
+
+      const maxScrollTop = source.scrollHeight - source.clientHeight;
+      if (maxScrollTop > 0) {
+        target.scrollTop = (source.scrollTop / maxScrollTop) * (target.scrollHeight - target.clientHeight);
+      }
+
+      const maxScrollLeft = source.scrollWidth - source.clientWidth;
+      if (maxScrollLeft > 0) {
+        target.scrollLeft = (source.scrollLeft / maxScrollLeft) * (target.scrollWidth - target.clientWidth);
+      }
+
+      requestAnimationFrame(() => { isSyncing = false; });
+    }
+
+    function syncSelection(source, target) {
+      if (document.activeElement !== source) return;
+      target.selectionStart = source.selectionStart;
+      target.selectionEnd = source.selectionEnd;
+    }
+
+    inputText.addEventListener('scroll', () => syncScroll(inputText, outputText));
+    outputText.addEventListener('scroll', () => syncScroll(outputText, inputText));
+
+    inputText.addEventListener('select', () => syncSelection(inputText, outputText));
+    outputText.addEventListener('select', () => syncSelection(outputText, inputText));
+
+    // Layout & Splitters
+    let isDraggingWorkspace = false;
+    let isDraggingStatus = false;
+
+    function updateLayout(layoutType) {
+      workspace.className = `workspace-container layout-${layoutType}`;
+      paneInput.style.width = '';
+      paneInput.style.height = '';
+      paneOutput.style.width = '';
+      paneOutput.style.height = '';
+    }
+
+    function toggleStatusPanel() {
+      if (statusPanel.style.height === '35px') {
+        statusPanel.style.height = '120px';
+      } else {
+        statusPanel.style.height = '35px';
+      }
+    }
+
+    workspaceSplitter.addEventListener('mousedown', () => {
+      isDraggingWorkspace = true;
+      workspaceSplitter.classList.add('dragging');
+      document.body.style.userSelect = 'none';
+    });
+
+    statusSplitter.addEventListener('mousedown', () => {
+      isDraggingStatus = true;
+      statusSplitter.classList.add('dragging');
+      document.body.style.userSelect = 'none';
+    });
+
+    document.addEventListener('mousemove', (e) => {
+      if (isDraggingWorkspace) {
+        const bounds = workspace.getBoundingClientRect();
+        if (workspace.classList.contains('layout-horizontal')) {
+          let percentage = ((e.clientX - bounds.left) / bounds.width) * 100;
+          percentage = Math.max(15, Math.min(85, percentage));
+          paneInput.style.width = `${percentage}%`;
+          paneOutput.style.width = `${100 - percentage}%`;
+        } else {
+          let percentage = ((e.clientY - bounds.top) / bounds.height) * 100;
+          percentage = Math.max(15, Math.min(85, percentage));
+          paneInput.style.height = `${percentage}%`;
+          paneOutput.style.height = `${100 - percentage}%`;
+        }
+      } else if (isDraggingStatus) {
+        const newHeight = window.innerHeight - e.clientY;
+        const clampedHeight = Math.max(35, Math.min(window.innerHeight * 0.35, newHeight));
+        statusPanel.style.height = `${clampedHeight}px`;
+      }
+    });
+
+    document.addEventListener('mouseup', () => {
+      if (isDraggingWorkspace || isDraggingStatus) {
+        isDraggingWorkspace = false;
+        isDraggingStatus = false;
+        workspaceSplitter.classList.remove('dragging');
+        statusSplitter.classList.remove('dragging');
+        document.body.style.userSelect = '';
+      }
+    });
+
+    processText();
+  </script>
+</body>
+</html>
